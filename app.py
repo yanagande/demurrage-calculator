@@ -7,22 +7,30 @@ import easyocr
 from pdf2image import convert_from_bytes
 import numpy as np
 import platform
+import shutil
 
 # -----------------------------
 # CONFIG: POPPLER PATH
 # -----------------------------
-# On Windows, use local Poppler; on Cloud/Linux, use system-installed poppler-utils
 if platform.system() == "Windows":
     POPPLER_PATH = r"C:\poppler\Library\bin"
+    st.info("Using Windows local Poppler.")
 else:
-    POPPLER_PATH = None  # Streamlit Cloud / Linux
+    # On Linux / Streamlit Cloud
+    pdfinfo_path = shutil.which("pdfinfo")
+    pdftoppm_path = shutil.which("pdftoppm")
+    if pdfinfo_path and pdftoppm_path:
+        POPPLER_PATH = None  # pdf2image uses system binaries if poppler_path=None
+        st.info("Poppler detected on system (Streamlit Cloud/Linux).")
+    else:
+        POPPLER_PATH = None
+        st.error("Poppler not found! PDF conversion will fail. Please install poppler-utils.")
 
 # -----------------------------
 # CACHED OCR READER
 # -----------------------------
 @st.cache_resource
 def load_reader():
-    # Force CPU for Streamlit Cloud
     return easyocr.Reader(['en'], gpu=False)
 
 reader = load_reader()
@@ -245,7 +253,7 @@ if results:
     st.subheader("📊 Demurrage Summary")
     st.dataframe(
         df.style
-          .format({"Demurrage (USD)": "${:,.2f}"})
+          .format({"Demurrage (USD)": "${:,.2f}"} )
           .set_table_styles([{
               "selector": "th",
               "props": [("background-color", "#00bfa5"), ("color", "white"), ("font-weight", "bold")]
