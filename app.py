@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import io
 import streamlit as st
 from datetime import datetime, timedelta
@@ -552,4 +551,3 @@ if results:
         file_name="demurrage_summary.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
->>>>>>> 8822a007c59ff53f9e7695ad1f888676ee7b3916
