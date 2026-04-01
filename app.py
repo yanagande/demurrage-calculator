@@ -61,10 +61,14 @@ def clean_ocr(text):
 def ocr_pdf(file):
     file.seek(0)
     try:
-        images = convert_from_bytes(file.read(), poppler_path=POPPLER_PATH)
+        if POPPLER_PATH:
+            images = convert_from_bytes(file.read(), poppler_path=POPPLER_PATH)
+        else:
+            images = convert_from_bytes(file.read())
     except Exception as e:
-        st.error(f"Failed to convert PDF pages: {e}")
+        st.error(f"Failed to convert PDF pages. Is it a valid PDF? Error: {e}")
         return ""
+    
     all_text = []
     for img in images:
         img_np = np.array(img)
