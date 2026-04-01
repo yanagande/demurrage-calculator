@@ -1,0 +1,20 @@
+<<<<<<< HEAD
+streamlit
+pandas
+numpy
+easyocr
+pdf2image
+pillow
+torch
+torchvision
+=======
+streamlit
+pandas
+numpy
+easyocr
+pdf2image
+pillow
+torch
+torchvision
+>>>>>>> 8822a007c59ff53f9e7695ad1f888676ee7b3916
+opencv-python-headless
