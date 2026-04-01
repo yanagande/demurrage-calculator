@@ -6,33 +6,23 @@ import re
 import easyocr
 from pdf2image import convert_from_bytes
 import numpy as np
-
-# -----------------------------
-# CONFIG
-# -----------------------------
 import platform
-import streamlit as st
-import easyocr
-from pdf2image import convert_from_bytes
-import numpy as np
-import re
-
 
 # -----------------------------
 # CONFIG: POPPLER PATH
 # -----------------------------
+# On Windows, use local Poppler; on Cloud/Linux, use system-installed poppler-utils
 if platform.system() == "Windows":
-    # Use your local Poppler path on Windows
     POPPLER_PATH = r"C:\poppler\Library\bin"
 else:
-    # Cloud / Linux environment
-    POPPLER_PATH = None  # Uses system-installed poppler-utils
+    POPPLER_PATH = None  # Streamlit Cloud / Linux
 
 # -----------------------------
 # CACHED OCR READER
 # -----------------------------
 @st.cache_resource
 def load_reader():
+    # Force CPU for Streamlit Cloud
     return easyocr.Reader(['en'], gpu=False)
 
 reader = load_reader()
@@ -54,7 +44,6 @@ def clean_ocr(text):
     }
     for k, v in replacements.items():
         text = text.replace(k, v)
-    text = re.sub(r'(\d{4})/(\d{1,2})(\d{2})', r'\1/\2/\3', text)
     text = re.sub(r'\s+', ' ', text)
     return text
 
@@ -63,7 +52,11 @@ def clean_ocr(text):
 # -----------------------------
 def ocr_pdf(file):
     file.seek(0)
-    images = convert_from_bytes(file.read(), poppler_path=POPPLER_PATH)
+    try:
+        images = convert_from_bytes(file.read(), poppler_path=POPPLER_PATH)
+    except Exception as e:
+        st.error(f"Failed to convert PDF pages: {e}")
+        return ""
     all_text = []
     for img in images:
         img_np = np.array(img)
@@ -73,7 +66,7 @@ def ocr_pdf(file):
     return clean_ocr(text)
 
 # -----------------------------
-# SPLIT EVENTS
+# SPLIT EVENTS FUNCTION
 # -----------------------------
 def split_into_events(text):
     pattern = re.compile(
@@ -131,7 +124,7 @@ def extract_events(text):
     return found, rows
 
 # -----------------------------
-# LAYTIME CALCULATION (ASBATANKVOY)
+# LAYTIME CALCULATION
 # -----------------------------
 def calculate_laytime_asbatankvoy(events, allowed_hours, rate_per_day, manual_weather_hrs=0.0):
     nor = events.get("nor_tendered")
@@ -166,8 +159,8 @@ def calculate_laytime_asbatankvoy(events, allowed_hours, rate_per_day, manual_we
 # -----------------------------
 # STREAMLIT UI
 # -----------------------------
-PRIMARY_COLOR = "#00A79D"  # Petronas green
-ACCENT_COLOR = "#005f5f"   # Darker green for accents
+PRIMARY_COLOR = "#00A79D"
+ACCENT_COLOR = "#005f5f"
 
 st.markdown(f"""
     <h1 style='text-align: center; color: {PRIMARY_COLOR};'>⚓ Demurrage Calculator</h1>
@@ -186,7 +179,7 @@ weather_load = st.sidebar.number_input("Loading: Weather/Storm Duration (hrs)", 
 weather_dis = st.sidebar.number_input("Discharging: Weather/Storm Duration (hrs)", min_value=0.0, step=0.5)
 
 # -----------------------------
-# PROCESS FUNCTION
+# PROCESS PDF FUNCTION
 # -----------------------------
 def process_pdf(file, label):
     text = ocr_pdf(file)
@@ -199,7 +192,7 @@ def process_pdf(file, label):
     return events
 
 # -----------------------------
-# RUN LOADING
+# RUN LOADING & DISCHARGING
 # -----------------------------
 load_result = None
 if load_pdf:
@@ -210,9 +203,6 @@ if load_pdf:
     else:
         st.warning("Missing Loading Events")
 
-# -----------------------------
-# RUN DISCHARGING
-# -----------------------------
 dis_result = None
 if dis_pdf:
     dis_events = process_pdf(dis_pdf, "Discharging")
@@ -223,7 +213,7 @@ if dis_pdf:
         st.warning("Missing Discharging Events")
 
 # -----------------------------
-# RESULTS
+# RESULTS TABLE & DOWNLOAD
 # -----------------------------
 results = []
 if load_result:
@@ -262,13 +252,9 @@ if results:
           }])
     )
 
-    # -----------------------------
-    # EXPORT TO EXCEL
-    # -----------------------------
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, sheet_name='Demurrage', index=True)
-        # ✅ No writer.save() needed
     output.seek(0)
 
     st.download_button(
