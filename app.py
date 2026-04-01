@@ -10,30 +10,33 @@ import platform
 import shutil
 
 # -----------------------------
-# CONFIG: POPPLER PATH
-# -----------------------------
-if platform.system() == "Windows":
-    POPPLER_PATH = r"C:\poppler\Library\bin"
-    st.info("Using Windows local Poppler.")
-else:
-    # On Linux / Streamlit Cloud
-    pdfinfo_path = shutil.which("pdfinfo")
-    pdftoppm_path = shutil.which("pdftoppm")
-    if pdfinfo_path and pdftoppm_path:
-        POPPLER_PATH = None  # pdf2image uses system binaries if poppler_path=None
-        st.info("Poppler detected on system (Streamlit Cloud/Linux).")
-    else:
-        POPPLER_PATH = None
-        st.error("Poppler not found! PDF conversion will fail. Please install poppler-utils.")
-
-# -----------------------------
-# CACHED OCR READER
+# OCR: Lazy load reader for Streamlit Cloud
 # -----------------------------
 @st.cache_resource
-def load_reader():
+def get_ocr_reader():
     return easyocr.Reader(['en'], gpu=False)
 
-reader = load_reader()
+# -----------------------------
+# Function to extract text from PDF
+# -----------------------------
+def pdf_to_text(pdf_bytes, poppler_path=None):
+    reader = get_ocr_reader()
+    try:
+        if poppler_path:
+            images = convert_from_bytes(pdf_bytes, poppler_path=poppler_path)
+        else:
+            images = convert_from_bytes(pdf_bytes)
+    except Exception as e:
+        st.error(f"Failed to convert PDF pages. Is it a valid PDF? Error: {e}")
+        return ""
+    
+    all_text = []
+    for img in images:
+        img_np = np.array(img)
+        result = reader.readtext(img_np, detail=0)
+        all_text.extend(result)
+    text = " ".join(all_text)
+    return clean_ocr(text)
 
 # -----------------------------
 # OCR CLEANING FUNCTION
@@ -54,28 +57,6 @@ def clean_ocr(text):
         text = text.replace(k, v)
     text = re.sub(r'\s+', ' ', text)
     return text
-
-# -----------------------------
-# OCR PDF FUNCTION
-# -----------------------------
-def ocr_pdf(file):
-    file.seek(0)
-    try:
-        if POPPLER_PATH:
-            images = convert_from_bytes(file.read(), poppler_path=POPPLER_PATH)
-        else:
-            images = convert_from_bytes(file.read())
-    except Exception as e:
-        st.error(f"Failed to convert PDF pages. Is it a valid PDF? Error: {e}")
-        return ""
-    
-    all_text = []
-    for img in images:
-        img_np = np.array(img)
-        result = reader.readtext(img_np, detail=0)
-        all_text.extend(result)
-    text = " ".join(all_text)
-    return clean_ocr(text)
 
 # -----------------------------
 # SPLIT EVENTS FUNCTION
