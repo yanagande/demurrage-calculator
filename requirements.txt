@@ -1,9 +1,0 @@
-streamlit
-pandas
-numpy
-easyocr
-pdf2image
-pillow
-torch
-torchvision
-opencv-python-headless
