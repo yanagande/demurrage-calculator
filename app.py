@@ -7,7 +7,14 @@ import easyocr
 from pdf2image import convert_from_bytes
 import numpy as np
 import platform
-import shutil
+
+# -----------------------------
+# CONFIG: Poppler path for Windows
+# -----------------------------
+if platform.system() == "Windows":
+    POPPLER_PATH = r"C:\poppler\Library\bin"
+else:
+    POPPLER_PATH = None
 
 # -----------------------------
 # OCR: Lazy load reader for Streamlit Cloud
@@ -15,28 +22,6 @@ import shutil
 @st.cache_resource
 def get_ocr_reader():
     return easyocr.Reader(['en'], gpu=False)
-
-# -----------------------------
-# Function to extract text from PDF
-# -----------------------------
-def pdf_to_text(pdf_bytes, poppler_path=None):
-    reader = get_ocr_reader()
-    try:
-        if poppler_path:
-            images = convert_from_bytes(pdf_bytes, poppler_path=poppler_path)
-        else:
-            images = convert_from_bytes(pdf_bytes)
-    except Exception as e:
-        st.error(f"Failed to convert PDF pages. Is it a valid PDF? Error: {e}")
-        return ""
-    
-    all_text = []
-    for img in images:
-        img_np = np.array(img)
-        result = reader.readtext(img_np, detail=0)
-        all_text.extend(result)
-    text = " ".join(all_text)
-    return clean_ocr(text)
 
 # -----------------------------
 # OCR CLEANING FUNCTION
@@ -57,6 +42,29 @@ def clean_ocr(text):
         text = text.replace(k, v)
     text = re.sub(r'\s+', ' ', text)
     return text
+
+# -----------------------------
+# OCR PDF FUNCTION
+# -----------------------------
+def ocr_pdf(file, poppler_path=None):
+    file.seek(0)
+    reader = get_ocr_reader()
+    try:
+        if poppler_path:
+            images = convert_from_bytes(file.read(), poppler_path=poppler_path)
+        else:
+            images = convert_from_bytes(file.read())
+    except Exception as e:
+        st.error(f"Failed to convert PDF pages. Is it a valid PDF? Error: {e}")
+        return ""
+    
+    all_text = []
+    for img in images:
+        img_np = np.array(img)
+        result = reader.readtext(img_np, detail=0)
+        all_text.extend(result)
+    text = " ".join(all_text)
+    return clean_ocr(text)
 
 # -----------------------------
 # SPLIT EVENTS FUNCTION
@@ -89,7 +97,7 @@ def split_into_events(text):
     return events
 
 # -----------------------------
-# EXTRACT EVENTS
+# EXTRACT EVENTS FUNCTION
 # -----------------------------
 def extract_events(text):
     raw_rows = split_into_events(text)
@@ -117,7 +125,7 @@ def extract_events(text):
     return found, rows
 
 # -----------------------------
-# LAYTIME CALCULATION
+# LAYTIME CALCULATION FUNCTION
 # -----------------------------
 def calculate_laytime_asbatankvoy(events, allowed_hours, rate_per_day, manual_weather_hrs=0.0):
     nor = events.get("nor_tendered")
@@ -175,7 +183,7 @@ weather_dis = st.sidebar.number_input("Discharging: Weather/Storm Duration (hrs)
 # PROCESS PDF FUNCTION
 # -----------------------------
 def process_pdf(file, label):
-    text = ocr_pdf(file)
+    text = ocr_pdf(file, poppler_path=POPPLER_PATH)
     st.subheader(f"{label} OCR Text")
     st.text_area("OCR Output", text, height=200)
     events, rows = extract_events(text)
