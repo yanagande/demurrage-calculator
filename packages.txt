@@ -1,1 +1,3 @@
 poppler-utils
+fonts-dejavu-core
+fonts-dejavu-mono
